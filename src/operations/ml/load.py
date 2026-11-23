@@ -7,7 +7,7 @@ from src.exceptions import ChainError
 from src.ml.sharing import model_from_record
 from src.models.rows import Rows
 from src.operations.base import CombinesChains, RunContext
-from src.operations.ml.common import store_of
+from src.operations.ml.common import recipe_steps_of, store_of
 
 if TYPE_CHECKING:
     from src.models.chain import Chain
@@ -19,8 +19,10 @@ class LoadOperation(CombinesChains):
 
     JSON: {"op": "load", "from": {"source": "http://node12:8095/models/mg12_demand/export"}, "as": "mg12_demand"}
     The chain under "from" must give one record: a model as GET /models/{name}/export writes it (plain numbers, no
-    code; it is checked before it is saved). Without "as", the model keeps the name in the record. A model of the
-    same name is replaced. The next steps use it by name: predict, forecast, finetune.
+    code; it is checked before it is saved). The model comes with its recipe, which is checked like a chain of lag
+    and map steps, so prepare and forecast work with it here. Without "as", the model keeps the name
+    in the record. A model of the same name is replaced. The next steps use it by name: prepare, predict,
+    forecast, finetune.
     """
 
     name: ClassVar[str] = "load"
@@ -32,5 +34,7 @@ class LoadOperation(CombinesChains):
         records = self.with_chain.execute(ctx).items
         if len(records) != 1:
             raise ChainError(f'the chain under "from" must give one record, a model, not {len(records)}')
-        store_of(ctx).save(model_from_record(records[0], self.output))
+        model = model_from_record(records[0], self.output)
+        recipe_steps_of(model, ctx)  # only lag and map steps, each one readable and allowed: else a 400
+        store_of(ctx).save(model)
         return rows

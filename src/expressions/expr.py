@@ -6,10 +6,10 @@ from types import CodeType
 from typing import Any
 
 from src.exceptions import ChainError
-from src.expressions.allowed import FUNCTIONS
+from src.expressions.allowed import CONSTANTS, FUNCTIONS
 from src.expressions.checker import Refused, check
 from src.expressions.guards import bounded_mul, bounded_pow
-from src.expressions.rewriter import FUNCTION_PREFIX, MUL_NAME, POW_NAME, ROW_NAME, rewrite
+from src.expressions.rewriter import CONSTANT_PREFIX, FUNCTION_PREFIX, MUL_NAME, POW_NAME, ROW_NAME, rewrite
 from src.models.rows import Row
 
 DEFAULT_MAX_LENGTH = 500
@@ -20,6 +20,7 @@ _GLOBALS: dict[str, Any] = {
     POW_NAME: bounded_pow,
     MUL_NAME: bounded_mul,
     **{FUNCTION_PREFIX + name: function for name, function in FUNCTIONS.items()},
+    **{CONSTANT_PREFIX + name: value for name, value in CONSTANTS.items()},
 }
 
 

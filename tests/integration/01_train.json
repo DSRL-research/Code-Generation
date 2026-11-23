@@ -1,0 +1,13 @@
+{"source": "http://localhost:4001/microgrids/1/readings?start=2026-07-01&end=2026-07-29",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "lag", "field": "kw", "lags": [1, 2, 24]},
+   {"op": "map", "set": {
+     "hour_sin": "sin(2 * pi * ts.hour / 24)",
+     "hour_cos": "cos(2 * pi * ts.hour / 24)",
+     "day_sin": "sin(2 * pi * ts.weekday() / 7)",
+     "day_cos": "cos(2 * pi * ts.weekday() / 7)"}},
+   {"op": "train", "model": "mg1_demand_v3", "target": "kw",
+    "features": ["kw_lag_1", "kw_lag_2", "kw_lag_24", "hour_sin", "hour_cos", "day_sin", "day_cos"],
+    "algo": "linear"},
+   {"op": "top", "n": 3, "by": "ts"}]}

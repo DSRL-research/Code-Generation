@@ -80,8 +80,8 @@ switched on), 502 `{"error": ...}` (a source cannot be reached). Each error name
 
 | Family | Operators |
 |---|---|
-| stream | `filter`, `map`, `reduce`, `join`, `union`, `top`, `collect` |
-| ml | `fit`, `finetune`, `load`, `predict`, `forecast`, `evaluate`, `embed`, `similarity` |
+| stream | `filter`, `map`, `reduce`, `join`, `union`, `top`, `lag`, `collect` |
+| ml | `fit`, `train`, `prepare`, `finetune`, `load`, `predict`, `forecast`, `evaluate`, `embed`, `similarity` |
 
 ## Code
 
@@ -95,8 +95,8 @@ src/
   models/                      the chain JSON (chain_json.py, steps/stream.py, steps/ml.py), Chain, Rows, Timestamp,
                                ModelRecord (a shared model)
   expressions/                 Expression: allowed lists, checker, rewriter, guards
-  operations/stream/           filter, map, reduce/ (a package), join, union, top, collect
-  operations/ml/               fit, finetune, load, predict, forecast, evaluate, embed, similarity
+  operations/stream/           filter, map, reduce/ (a package), join, union, top, lag, collect
+  operations/ml/               fit, train, prepare, finetune, load, predict, forecast, evaluate, embed, similarity
   ml/                          features, algorithms, trained models, metrics, profiles, vectors, sharing
   store/                       the model store
   clients/                     SourceClient: GET a link, records -> rows

@@ -1,4 +1,4 @@
-"""The algorithms a chain may name in "fit", with the parameters it may set and their allowed ranges.
+"""The algorithms a chain may name in "train", with the parameters it may set and their allowed ranges.
 
 To add an algorithm, add an entry to ALGORITHMS. Parameters are checked when the chain is parsed, before anything
 runs, so a policy can later limit them in the same way.

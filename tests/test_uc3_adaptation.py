@@ -53,6 +53,7 @@ def mae_on_the_next_two_days(client: Sandbox, server: SourceServer, target: int,
     chain: dict[str, Any] = {"source": server.url(f"/microgrids/{target}/readings?start={NOW}&end=2026-07-20"),
                              "steps": [
         {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+        {"op": "prepare", "model": model},
         {"op": "predict", "model": model, "as": "kw_pred"},
         {"op": "filter", "where": "ts >= '2026-07-19'"},
         {"op": "evaluate", "actual": "kw", "predicted": "kw_pred"},
@@ -60,6 +61,10 @@ def mae_on_the_next_two_days(client: Sandbox, server: SourceServer, target: int,
     [scores] = client.run(chain)
     assert scores["n"] == 48
     return scores["mae"]
+
+
+def trains(run: list[str]) -> bool:
+    return "train" in run or "finetune" in run
 
 
 def local_model(decision: Decision) -> str:
@@ -113,7 +118,7 @@ def test_the_adapted_node_continues_the_workflow(sandbox: TestClient, source_ser
         Asset("load_readings", 11, "agg", source_server.url(f"/microgrids/11/readings?start=2026-07-15&end={NOW}")),
         Asset("demand_model", 11, "model", decision.chosen.model, derived_from="UC3"),
     ])  # fmt: skip
-    trainings_before = sum("fit" in run for run in client.runs)
+    trainings_before = sum(trains(run) for run in client.runs)
     forecast = Orchestrator(client, knowledge, CannedGenerator()).step("demand_forecast", [11])[11]
     assert [row["ts"] for row in forecast] == [f"2026-07-19T0{hour}:00:00" for hour in range(4)]
-    assert sum("fit" in run for run in client.runs) == trainings_before
+    assert sum(trains(run) for run in client.runs) == trainings_before

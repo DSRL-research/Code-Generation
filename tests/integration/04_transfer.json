@@ -1,0 +1,7 @@
+{"source": "http://localhost:4001/microgrids/12/readings?start=2026-07-29&end=2026-07-30",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "load", "from": {"source": "http://localhost:8095/models/mg12_from_mg1_v3/export"}},
+   {"op": "prepare", "model": "mg12_from_mg1_v3"},
+   {"op": "predict", "model": "mg12_from_mg1_v3", "as": "kw_pred"},
+   {"op": "evaluate", "actual": "kw", "predicted": "kw_pred"}]}

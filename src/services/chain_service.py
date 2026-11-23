@@ -38,7 +38,10 @@ class ChainService:
         started = time.perf_counter()
         chain = self._parser.parse(chain_json)
         self._checker.check(chain)
-        rows = chain.execute(RunContext(fetch=FetchOnce(self._client.fetch), models=self._models))
+        context = RunContext(
+            fetch=FetchOnce(self._client.fetch), models=self._models, parse_steps=self._parser.recipe_steps
+        )
+        rows = chain.execute(context)
         reply = to_reply(rows.items)
         logger.info("chain on %s: %d rows in %.0f ms", chain.source, len(reply), 1000 * (time.perf_counter() - started))
         return reply

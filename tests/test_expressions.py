@@ -78,6 +78,19 @@ def test_a_function_never_clashes_with_a_field_of_the_same_name() -> None:
     assert evaluate("abs(abs - 10)", {"abs": 4}) == 6
 
 
+def test_the_hour_as_a_point_on_a_circle() -> None:
+    """The cyclical encoding of v3 training inputs (DESIGN.md section 17): 18:15 is three quarters round."""
+    assert evaluate("round(sin(2 * pi * ts.hour / 24), 9)") == -1.0
+    assert evaluate("round(cos(2 * pi * ts.hour / 24), 9)") == 0.0
+    assert Expression.parse("sin(2 * pi * ts.hour / 24)").fields == {"ts"}  # pi is a constant, not a field
+
+
+def test_a_field_named_like_a_constant_is_read_with_field() -> None:
+    assert evaluate("field('pi') + pi", {"pi": 1.0}) == pytest.approx(4.14159265)
+    with pytest.raises(ChainError, match="pi"):
+        Expression.parse("pi()")
+
+
 @pytest.mark.parametrize(
     "text, reason",
     [

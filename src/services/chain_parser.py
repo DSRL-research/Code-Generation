@@ -1,11 +1,14 @@
 """Turns a chain written as JSON into a Chain of operations. Reads no data (ChainParser.java).
 
 1. pydantic checks the shape of the JSON (models/chain_json.py, models/steps/);
-2. a builder per operator makes its operation (services/builders/stream.py and ml.py).
+2. a builder per operator makes its operation (services/builders/stream.py and ml.py);
+3. an operation that saves a model with its recipe (train) gets the steps before it (services/recipe.py).
 
 To add an operator: add its model to models/steps/ and a builder to the builders of its family.
 """
 
+from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -15,10 +18,12 @@ from src.expressions import Expression
 from src.models.chain import Chain, Step
 from src.models.chain_json import ChainJson
 from src.models.steps.stream import CollectJson
+from src.operations import RecordsRecipe
 from src.services import validation_errors
 from src.services.builders import Builder
 from src.services.builders.ml import MlBuilders
 from src.services.builders.stream import StreamBuilders
+from src.services.recipe import RECIPE_SOURCE, check_recipe, recipe_before
 
 
 class ChainParser:
@@ -46,11 +51,19 @@ class ChainParser:
                 if isinstance(step, CollectJson) and index != len(model.steps) - 1:
                     raise ChainError("collect can only be the last step")
                 operation = self._builders[type(step)](step, f"{path}steps[{index}].")
+                if isinstance(operation, RecordsRecipe):
+                    operation = replace(operation, recipe=recipe_before(model.steps[:index]))
             except ChainError as error:
                 error.at(where)
                 raise
             steps.append(Step(where, operation))
         return Chain(model.source, tuple(steps), path)
+
+    def recipe_steps(self, recipe: Sequence[Any]) -> tuple[Step, ...]:
+        """The steps of a model's recipe (JSON), ready to run on rows: for prepare and forecast. Raises ChainError
+        if it holds anything but lag and map steps, or cannot be read."""
+        check_recipe(recipe)
+        return self.parse({"source": RECIPE_SOURCE, "steps": list(recipe)}).steps
 
     def expression(self, text: str, about: str | None = None) -> Expression:
         try:

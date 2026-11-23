@@ -1,0 +1,9 @@
+{"source": "http://localhost:4001/microgrids/12/readings?start=2026-07-24&end=2026-07-30",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "prepare", "model": "mg1_demand_v3"},
+   {"op": "map", "set": {"set": "'test' if ts >= '2026-07-30' else 'train'"}},
+   {"op": "finetune", "model": "mg1_demand_v3", "as": "mg12_from_mg1_v3", "where": "set == 'train'"},
+   {"op": "predict", "model": "mg12_from_mg1_v3", "as": "kw_pred"},
+   {"op": "filter", "where": "set == 'test'"},
+   {"op": "evaluate", "actual": "kw", "predicted": "kw_pred", "model": "mg12_from_mg1_v3"}]}

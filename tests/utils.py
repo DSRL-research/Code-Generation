@@ -56,8 +56,9 @@ def run(
             fetches.append(link)
         return sources[link]
 
-    chain = ChainParser().parse(chain_json)
-    return chain.execute(RunContext(fetch=FetchOnce(fetch), models=models)).items
+    parser = ChainParser()
+    chain = parser.parse(chain_json)
+    return chain.execute(RunContext(fetch=FetchOnce(fetch), models=models, parse_steps=parser.recipe_steps)).items
 
 
 def mg_rows(number: int, start: str | None = None, end: str | None = None) -> Rows:
