@@ -8,8 +8,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import Ridge
+from sklearn.neural_network import MLPRegressor
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from src.exceptions import ChainError
 
@@ -28,6 +32,22 @@ class Algorithm:
     parameters: dict[str, Parameter]
 
 
+def _mlp(hidden: int, layers: int, alpha: float, learning_rate: float, max_iter: int) -> Any:
+    """A neural network: `layers` fully connected layers of `hidden` units (ReLU), trained with Adam.
+
+    Inputs and target are scaled to mean 0 and variance 1 for training (the lags are in kW, the calendar is between
+    -1 and 1); the predictions come back in the unit of the target.
+    """
+    network = MLPRegressor(
+        hidden_layer_sizes=(hidden,) * layers,
+        alpha=alpha,
+        learning_rate_init=learning_rate,
+        max_iter=max_iter,
+        random_state=0,
+    )
+    return TransformedTargetRegressor(regressor=make_pipeline(StandardScaler(), network), transformer=StandardScaler())
+
+
 ALGORITHMS: dict[str, Algorithm] = {
     "linear": Algorithm(
         make=lambda alpha: Ridge(alpha=alpha),
@@ -41,6 +61,16 @@ ALGORITHMS: dict[str, Algorithm] = {
             "n_estimators": Parameter(int, 1, 1000, 100),
             "max_depth": Parameter(int, 1, 10, 3),
             "learning_rate": Parameter(float, 0.001, 1.0, 0.1),
+        },
+    ),
+    "mlp": Algorithm(
+        make=_mlp,
+        parameters={
+            "hidden": Parameter(int, 1, 256, 32),
+            "layers": Parameter(int, 1, 3, 2),
+            "alpha": Parameter(float, 0.0, 10.0, 0.0001),
+            "learning_rate": Parameter(float, 0.00001, 0.1, 0.001),
+            "max_iter": Parameter(int, 10, 2000, 500),
         },
     ),
 }

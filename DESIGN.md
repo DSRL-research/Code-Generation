@@ -500,10 +500,27 @@ only takes rows with the interval it was trained on; any other interval is a 400
 
 ### Algorithms
 
-`linear` (ridge regression; `alpha` from 0 to 10⁶, default 1) and `gbr` (gradient boosting; `n_estimators` 1-1000,
-`max_depth` 1-10, `learning_rate` 0.001-1). The algorithm, its parameters and their ranges are checked when the
-chain is parsed, before anything runs, so a policy can later limit them in the same place. `src/ml/algorithms.py`
-holds the list.
+| `algo` | Model | `params` (range, default) |
+|---|---|---|
+| `linear` (default) | ridge regression | `alpha` 0-10⁶, 1 |
+| `gbr` | gradient-boosted trees | `n_estimators` 1-1000, 100; `max_depth` 1-10, 3; `learning_rate` 0.001-1, 0.1 |
+| `mlp` | neural network: `layers` fully connected ReLU layers of `hidden` units, Adam; inputs and target scaled for training, predictions in the target's unit | `hidden` 1-256, 32; `layers` 1-3, 2; `alpha` (L2) 0-10, 0.0001; `learning_rate` 0.00001-0.1, 0.001; `max_iter` 10-2000, 500 |
+
+The algorithm, its parameters and their ranges are checked when the chain is parsed, before anything runs, so a
+policy can later limit them in the same place. `src/ml/algorithms.py` holds the list. All three train in under a
+second on a month of hourly rows. On the held-out day of the test data (lags 1, 2, 24; hour and weekday), the MAE
+in kW was:
+
+| | MG1 | MG2 | MG12 |
+|---|---|---|---|
+| `linear` | 22.0 | 14.2 | 11.3 |
+| `gbr` (200 trees, depth 3, learning rate 0.05) | 12.2 | 9.8 | 10.8 |
+| `mlp` (defaults) | 18.4 | 12.2 | 14.1 |
+
+One day is a noisy score (section 16); the table only shows that the three are in the same range.
+
+`finetune` works on all three (the correction is a ridge regression on top of any source). Only `linear` models can
+be shared yet.
 
 ### The model store, and models as assets
 

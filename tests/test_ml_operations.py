@@ -57,6 +57,22 @@ def test_fit_with_gradient_boosting(store: ModelStore) -> None:
     assert store.card("mg1_demand")["params"] == {"n_estimators": 50, "max_depth": 2, "learning_rate": 0.1}
 
 
+def test_fit_with_a_neural_network_then_use_and_adapt_it(store: ModelStore) -> None:
+    step = {**FIT, "algo": "mlp", "params": {"hidden": 16, "layers": 1}}
+    [card] = run(chain(step), {LINK: TRAIN_MG1}, models=store)
+    assert card["algo"] == "mlp" and 0 < card["mae"] < 40
+    assert store.card("mg1_demand")["params"] == {
+        "hidden": 16, "layers": 1, "alpha": 0.0001, "learning_rate": 0.001, "max_iter": 500}  # fmt: skip
+
+    forecast = run(chain({"op": "forecast", "model": "mg1_demand", "steps": 4, "as": "load"}),
+                   {LINK: mg_rows(1, "2026-07-15", "2026-07-18")}, models=store)  # fmt: skip
+    assert all(200 < row["load"] < 900 for row in forecast)  # in kW: the target scaling is undone
+
+    finetune = {"op": "finetune", "model": "mg1_demand", "as": "mg11_from_mg1", "holdout": 24}
+    [adapted] = run(chain(finetune), {LINK: mg_rows(11, "2026-07-15", "2026-07-18")}, models=store)
+    assert adapted["kind"] == "adapted" and adapted["algo"] == "mlp" and adapted["mae"] is not None
+
+
 def test_fit_needs_the_time_step_of_the_rows(store: ModelStore) -> None:
     with pytest.raises(ChainError, match="the time step of the rows is unknown"):
         run(chain(FIT), {LINK: Rows(TRAIN_MG1.items, None)}, models=store)
@@ -73,6 +89,7 @@ def test_fit_needs_enough_rows(store: ModelStore) -> None:
         ({"algo": "svm"}, "unknown algo 'svm'"),
         ({"params": {"depth": 3}}, r"linear has no parameters \['depth'\]"),
         ({"algo": "gbr", "params": {"n_estimators": 5000}}, "n_estimators must be a number from 1 to 1000"),
+        ({"algo": "mlp", "params": {"layers": 4}}, "mlp: layers must be a number from 1 to 3"),
         ({"model": "../other"}, "a model name may hold only"),
         ({"lags": [0, 24]}, "lags must be different whole numbers from 1 to 168"),
         ({"calendar": ["minute"]}, r"steps\[0\]\.calendar"),

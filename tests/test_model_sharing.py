@@ -103,11 +103,13 @@ def test_the_record_is_the_model(store11: ModelStore) -> None:
     assert row["p"] == 2.0 * 5.0 + 1.0
 
 
-def test_gbr_models_cannot_be_exported_yet(store12: ModelStore) -> None:
-    fit = {**FIT, "model": "mg12_gbr", "algo": "gbr", "params": {"n_estimators": 5}}
+@pytest.mark.parametrize(("algo", "params"), [("gbr", {"n_estimators": 5}), ("mlp", {})])
+def test_gbr_and_mlp_models_cannot_be_exported_yet(store12: ModelStore, algo: str, params: dict[str, int]) -> None:
+    fit = {**FIT, "model": f"mg12_{algo}", "algo": algo, "params": params}
     run(chain(fit), {LINK: mg_rows(12, "2026-07-10", "2026-07-18")}, models=store12)
-    with pytest.raises(ChainError, match="mg12_gbr is a gbr model; only linear models can be exported for now"):
-        export_record(store12.load("mg12_gbr"))
+    message = f"mg12_{algo} is a {algo} model; only linear models can be exported for now"
+    with pytest.raises(ChainError, match=message):
+        export_record(store12.load(f"mg12_{algo}"))
 
 
 def _valid_record() -> dict[str, Any]:
