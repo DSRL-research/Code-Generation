@@ -1,0 +1,10 @@
+{
+  "capability": "demand_forecast",
+  "description": "The load of the next 4 hours of a microgrid, forecast with its demand model.",
+  "needs": ["load_readings", "demand_model"],
+  "produces": "rows",
+  "output_fields": ["ts", "load"],
+  "chain": {"source": "${load_readings}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "forecast", "model": "${demand_model}", "steps": 4, "as": "load"}]}
+}

@@ -1,0 +1,11 @@
+{
+  "capability": "demand_model",
+  "description": "A model that forecasts the load of a microgrid, trained on its own readings (the training pipeline).",
+  "needs": ["load_readings"],
+  "produces": "model",
+  "output_fields": ["name", "mae"],
+  "chain": {"source": "${load_readings}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "fit", "model": "${model_name}", "target": "kw", "lags": [1, 2, 24], "calendar": ["hour", "weekday"],
+     "holdout": 24}]}
+}

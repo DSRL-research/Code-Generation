@@ -1,0 +1,10 @@
+{"source": "{base}/files/demand_forecast",
+ "steps": [
+   {"op": "map", "set": {"slot": "ts.slot()"}},
+   {"op": "join", "on": "slot", "with": {
+     "source": "{base}/readings",
+     "steps": [
+       {"op": "reduce", "window": "15m", "aggregate": {"kw": "mean(kw)"}},
+       {"op": "reduce", "by": {"slot": "ts.slot()"}, "aggregate": {"baseline_kw": "mean(kw)"}}]}},
+   {"op": "map", "set": {"diff_kw": "load - baseline_kw", "flex_kw": "max(0, load - baseline_kw)"}},
+   {"op": "collect", "fields": ["ts", "slot", "load", "baseline_kw", "diff_kw", "flex_kw"], "decimals": 1}]}

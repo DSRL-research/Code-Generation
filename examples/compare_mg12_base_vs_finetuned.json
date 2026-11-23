@@ -1,0 +1,14 @@
+{"source": "http://localhost:4001/microgrids/12/readings?start=2026-07-26&end=2026-07-30",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "predict", "model": "mg1_demand", "as": "kw_base"},
+   {"op": "join", "on": "ts", "with": {
+     "source": "http://localhost:4001/microgrids/12/readings?start=2026-07-26&end=2026-07-30",
+     "steps": [
+       {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+       {"op": "predict", "model": "mg12_from_mg1", "as": "kw_finetuned"}]}},
+   {"op": "filter", "where": "ts >= '2026-07-27'"},
+   {"op": "map", "set": {"err_base": "abs(kw - kw_base)", "err_finetuned": "abs(kw - kw_finetuned)"}},
+   {"op": "reduce", "aggregate": {
+     "hours": "count(kw)", "mae_base": "mean(err_base)", "mae_finetuned": "mean(err_finetuned)"}},
+   {"op": "collect", "decimals": 1}]}

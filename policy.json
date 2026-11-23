@@ -1,0 +1,33 @@
+{
+  "description": "Sample policy for the data service of edc-connectors/chain-runtime/data-service, on port 8000. See DESIGN.md section 8.",
+  "sources": [
+    {"match": "http://localhost:8000/microgrids/*/readings*", "raw": true},
+    {"match": "http://localhost:8000/microgrids/*", "raw": false},
+    {"match": "http://127.0.0.1:8000/microgrids/*/readings*", "raw": true},
+    {"match": "http://127.0.0.1:8000/microgrids/*", "raw": false},
+    {"match": "http://localhost:4001/microgrids/*/readings*", "raw": true},
+    {"match": "http://localhost:4001/microgrids/*", "raw": false},
+    {"match": "http://127.0.0.1:4001/microgrids/*/readings*", "raw": true},
+    {"match": "http://127.0.0.1:4001/microgrids/*", "raw": false},
+    {"match": "http://localhost:8095/models/*/export", "raw": false},
+    {"match": "http://127.0.0.1:8095/models/*/export", "raw": false}
+  ],
+  "timeFields": ["ts"],
+  "operators": {
+    "filter":  {"onRaw": "time fields only"},
+    "reduce":  {"onRaw": {"minWindowMinutes": 15, "criteria": ["mean", "sum", "count"]}},
+    "map":     {"onRaw": false},
+    "join":    {"onRaw": false},
+    "union":   {"onRaw": false},
+    "top":     {"onRaw": false},
+    "collect": {"onRaw": false},
+    "fit":        {"onRaw": false},
+    "finetune":   {"onRaw": false},
+    "load":       {"onRaw": true},
+    "predict":    {"onRaw": false},
+    "forecast":   {"onRaw": false},
+    "evaluate":   {"onRaw": false},
+    "embed":      {"onRaw": false},
+    "similarity": {"onRaw": false}
+  }
+}

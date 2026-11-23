@@ -1,0 +1,16 @@
+{"source": "http://localhost:4001/microgrids/2/consumer_flex",
+ "steps": [
+   {"op": "filter", "where": "ts.hour < 16"},
+   {"op": "join", "on": "ts", "with": {"source": "http://localhost:4001/microgrids/2/battery_flex"}},
+   {"op": "map", "set": {
+     "battery_up_kw": "max(0, discharge)",
+     "battery_up_best_kw": "max(0, discharge_p90)",
+     "consumer_up_kw": "max(0, flex_down)",
+     "up_kw": "battery_up_kw + consumer_up_kw",
+     "up_best_kw": "battery_up_best_kw + consumer_up_kw"}},
+   {"op": "reduce", "window": "1h", "aggregate": {"*_kw": "mean"}},
+   {"op": "map", "set": {
+     "battery_share_pct": "100 * battery_up_kw / up_kw if up_kw > 0 else 0",
+     "battery_share_best_pct": "100 * battery_up_best_kw / up_best_kw if up_best_kw > 0 else 0"}},
+   {"op": "collect", "fields": ["ts", "up_kw", "consumer_up_kw", "battery_up_kw", "battery_share_pct",
+                                "battery_up_best_kw", "battery_share_best_pct"], "decimals": 1}]}

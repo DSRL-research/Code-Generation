@@ -1,0 +1,25 @@
+{
+  "description": "The policy of the tests: /readings of the test source server is raw, every other path is not.",
+  "sources": [
+    {"match": "http://127.0.0.1:*/readings*", "raw": true},
+    {"match": "http://127.0.0.1:*/*", "raw": false}
+  ],
+  "timeFields": ["ts"],
+  "operators": {
+    "filter":  {"onRaw": "time fields only"},
+    "reduce":  {"onRaw": {"minWindowMinutes": 15, "criteria": ["mean", "sum", "count"]}},
+    "map":     {"onRaw": false},
+    "join":    {"onRaw": false},
+    "union":   {"onRaw": false},
+    "top":     {"onRaw": false},
+    "collect": {"onRaw": false},
+    "fit":        {"onRaw": false},
+    "finetune":   {"onRaw": false},
+    "load":       {"onRaw": true},
+    "predict":    {"onRaw": false},
+    "forecast":   {"onRaw": false},
+    "evaluate":   {"onRaw": false},
+    "embed":      {"onRaw": false},
+    "similarity": {"onRaw": false}
+  }
+}

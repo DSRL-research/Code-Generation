@@ -1,0 +1,90 @@
+[
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T12:00:00+00:00",
+    "step": 1,
+    "charge_p10": 284.6448,
+    "charge": 296.7502,
+    "charge_p90": 307.764,
+    "discharge_p10": -8.8843,
+    "discharge": -5.1229,
+    "discharge_p90": 46.9417
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T12:15:00+00:00",
+    "step": 2,
+    "charge_p10": 291.6201,
+    "charge": 298.211,
+    "charge_p90": 309.3213,
+    "discharge_p10": -17.2239,
+    "discharge": -4.0197,
+    "discharge_p90": 89.5395
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T12:30:00+00:00",
+    "step": 3,
+    "charge_p10": 290.6977,
+    "charge": 294.3663,
+    "charge_p90": 318.5843,
+    "discharge_p10": -4.5346,
+    "discharge": -3.4536,
+    "discharge_p90": 42.6002
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T12:45:00+00:00",
+    "step": 4,
+    "charge_p10": 290.0439,
+    "charge": 301.886,
+    "charge_p90": 310.0276,
+    "discharge_p10": -9.6406,
+    "discharge": -3.8828,
+    "discharge_p90": 15.1353
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T13:00:00+00:00",
+    "step": 5,
+    "charge_p10": 291.587,
+    "charge": 297.4431,
+    "charge_p90": 314.6886,
+    "discharge_p10": -12.3349,
+    "discharge": -3.053,
+    "discharge_p90": 60.1251
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T13:15:00+00:00",
+    "step": 6,
+    "charge_p10": 296.2282,
+    "charge": 302.7455,
+    "charge_p90": 306.8847,
+    "discharge_p10": -11.4321,
+    "discharge": -2.0414,
+    "discharge_p90": 37.4433
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T13:30:00+00:00",
+    "step": 7,
+    "charge_p10": 295.801,
+    "charge": 298.8018,
+    "charge_p90": 310.6935,
+    "discharge_p10": -16.9659,
+    "discharge": -3.1996,
+    "discharge_p90": 26.7813
+  },
+  {
+    "origin": "2020-02-25T12:00:00+00:00",
+    "timestamp": "2020-02-25T13:45:00+00:00",
+    "step": 8,
+    "charge_p10": 296.2282,
+    "charge": 302.263,
+    "charge_p90": 302.786,
+    "discharge_p10": -9.2087,
+    "discharge": -8.4153,
+    "discharge_p90": 7.9831
+  }
+]

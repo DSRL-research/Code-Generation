@@ -1,0 +1,18 @@
+{
+  "description": "UC3: the chains the orchestrator uses to obtain the demand model of a microgrid with little history.",
+  "embedding": {"source": "${readings}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "embed", "field": "kw"}]},
+  "local": {"source": "${history}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "fit", "model": "${model_name}", "target": "kw", "lags": [1, 2, 24], "calendar": ["hour", "weekday"],
+     "holdout": 24}]},
+  "reused": {"source": "${history}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "predict", "model": "${model}", "as": "kw_pred"},
+    {"op": "filter", "where": "ts >= '${validation_from}'"},
+    {"op": "evaluate", "actual": "kw", "predicted": "kw_pred"}]},
+  "adapted": {"source": "${history}", "steps": [
+    {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "finetune", "model": "${model}", "as": "${model_name}", "holdout": 24}]}
+}

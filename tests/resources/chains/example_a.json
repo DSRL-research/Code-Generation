@@ -1,0 +1,5 @@
+{"source": "{base}/files/battery_flex",
+ "steps": [
+   {"op": "filter", "where": "ts.between('2020-02-25T13:00:00+00:00', '2020-02-25T14:00:00+00:00')"},
+   {"op": "reduce", "aggregate": {"charge*": "sum", "discharge*": "sum"}},
+   {"op": "collect", "decimals": 4}]}

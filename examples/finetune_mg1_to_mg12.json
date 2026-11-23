@@ -1,0 +1,4 @@
+{"source": "http://localhost:4001/microgrids/12/readings?start=2026-07-20&end=2026-07-26",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "finetune", "model": "mg1_demand", "as": "mg12_from_mg1", "holdout": 24}]}

@@ -1,0 +1,14 @@
+{
+  "capability": "consumer_flexibility",
+  "description": "For each forecast step, how much the forecast load is above the usual load of that hour: that surplus is flexible.",
+  "needs": ["demand_forecast", "load_readings"],
+  "produces": "rows",
+  "output_fields": ["ts", "load", "baseline_kw", "flex_kw"],
+  "chain": {"extend": "${demand_forecast}", "steps": [
+    {"op": "map", "set": {"hour": "ts.hour"}},
+    {"op": "join", "on": "hour", "with": {"source": "${load_readings}", "steps": [
+      {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+      {"op": "reduce", "by": {"hour": "ts.hour"}, "aggregate": {"baseline_kw": "mean(kw)"}}]}},
+    {"op": "map", "set": {"flex_kw": "max(0, load - baseline_kw)"}},
+    {"op": "collect", "fields": ["ts", "load", "baseline_kw", "flex_kw"], "decimals": 1}]}
+}
