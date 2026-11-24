@@ -25,10 +25,16 @@ FUNCTIONS: dict[str, Callable[..., Any]] = {
     "floor": math.floor,
     "ceil": math.ceil,
     "range": bounded_range,
+    # cycles, e.g. the hour as a point on a circle: sin(2 * pi * ts.hour / 24)
+    "sin": math.sin,
+    "cos": math.cos,
     # vectors, e.g. embeddings
     "distance": distance,
     "cosine": cosine,
 }
+
+CONSTANTS: dict[str, float] = {"pi": math.pi}
+"""Names that are constants, not fields. A field with one of these names is read with field('pi')."""
 
 FIELD_FUNCTION = "field"
 """field('load (kW)') reads a field whose name is not a Python name."""

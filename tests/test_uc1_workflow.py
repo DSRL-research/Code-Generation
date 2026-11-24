@@ -63,7 +63,7 @@ def test_consumer_flexibility_step_builds_on_the_forecasts(
             assert row["baseline_kw"] > 0
             assert row["flex_kw"] == pytest.approx(max(0, row["load"] - row["baseline_kw"]), abs=0.11)
     # the second step reused the models trained in the first: one training per derived microgrid
-    trainings = [run for run in flow.sandbox.runs if "fit" in run]
+    trainings = [run for run in flow.sandbox.runs if "train" in run]
     assert len(trainings) == len([mg for mg in mgs if mg != 2])
     assert flow.generator.requests[-1] == ("consumer_flexibility", mgs[0])
     assert len(flow.generator.requests) == 3
@@ -73,6 +73,8 @@ def test_a_model_is_a_capability_of_its_own(sandbox: TestClient, source_server: 
     flow = orchestrator(sandbox, source_server, [1])
     [card] = flow.step("demand_model", [1])[1]
     assert card["name"] == "mg1_demand_model" and card["kind"] == "trained" and card["mae"] < 40
+    assert card["recipe"][0] == {"op": "lag", "field": "kw", "lags": [1, 2, 24]}  # how its inputs are made
+    assert card["evaluated_rows"] == 8 * 24  # the test days: every 7th day of the month
 
 
 # ---------- generated code is checked before it is registered ----------
@@ -89,25 +91,25 @@ def test_a_chain_with_an_operator_the_sandbox_does_not_offer_is_refused(
     sandbox: TestClient, source_server: SourceServer
 ) -> None:
     flow = orchestrator(sandbox, source_server, [1],
-                        demand_model=broken({}, steps=[{"op": "train", "model": "${model_name}"}]))  # fmt: skip
-    with pytest.raises(GenerationFailed, match=r"\['train'\]"):
+                        demand_model=broken({}, steps=[{"op": "automl", "model": "${model_name}"}]))  # fmt: skip
+    with pytest.raises(GenerationFailed, match=r"\['automl'\]"):
         flow.step("demand_model", [1])
     assert flow.knowledge.recipe("demand_model") is None
 
 
 def test_a_chain_the_sandbox_cannot_read_is_not_registered(sandbox: TestClient, source_server: SourceServer) -> None:
-    wrong_lags = [{"op": "fit", "model": "${model_name}", "target": "kw", "lags": "24"}]
-    flow = orchestrator(sandbox, source_server, [1], demand_model=broken({}, steps=wrong_lags))
+    wrong_features = [{"op": "train", "model": "${model_name}", "target": "kw", "features": "kw_lag_24"}]
+    flow = orchestrator(sandbox, source_server, [1], demand_model=broken({}, steps=wrong_features))
     with pytest.raises(SandboxRefused) as refused:
         flow.step("demand_model", [1])
-    assert refused.value.status == 400 and "steps[0].lags" in refused.value.reply["error"]
+    assert refused.value.status == 400 and "steps[0].features" in refused.value.reply["error"]
     assert flow.knowledge.recipe("demand_model") is None
 
 
 def test_a_chain_whose_output_breaks_the_capability_is_not_registered(
     sandbox: TestClient, source_server: SourceServer
 ) -> None:
-    flow = orchestrator(sandbox, source_server, [1], demand_model=broken({"output_fields": ["name", "accuracy"]}))
+    flow = orchestrator(sandbox, source_server, [1], demand_model=broken({"output_fields": ["model", "accuracy"]}))
     with pytest.raises(RecipeFailed, match=r"the output has no \['accuracy'\]"):
         flow.step("demand_model", [1])
     assert flow.knowledge.recipe("demand_model") is None

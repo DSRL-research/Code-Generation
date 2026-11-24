@@ -218,6 +218,22 @@ Appends the rows of the `with` chain after the incoming rows. Duplicate rows are
 Keeps the `n` rows with the highest value of `by`. With `"order": "asc"`, it keeps the lowest. The default is
 `desc`. Rows with the same value keep their input order.
 
+### lag
+
+`{"op": "lag", "field": "kw", "lags": [1, 2, 24], "by": "mg"}`
+
+- Adds `<field>_lag_<k>` to each row: the value of `field` k time steps before the row's `ts`. The time step is
+  the interval of the rows, so a `reduce` with a window comes first: with 1h rows, `kw_lag_24` is the value 24
+  hours earlier; with 30m rows, `kw_lag_2` is the value one hour earlier.
+- The earlier value is the one at `ts - k × interval`, not the k-th row before: after a gap in the data, the rows
+  whose earlier value is missing are **dropped**, as are the first rows. A `None` value counts as missing. Later
+  expressions therefore never meet a missing lag.
+- `by` (optional, a field or a list of fields) keeps series apart, for example microgrids put together with `union`:
+  a row only gets values from the rows with the same `by`. Two rows with the same `ts` in one series are an error
+  (400) that suggests `by`.
+- `lags` are 1 to 168 different whole numbers. The rows keep their order and their interval.
+- It is the first step of a training chain (section 17); the other inputs are written with `map`.
+
 ### collect
 
 `{"op": "collect", "fields": ["ts", "kw"], "decimals": 1}`
@@ -246,7 +262,8 @@ expression: it can call methods on values, but it cannot be a statement.
 | Logic | `and`, `or`, `not` |
 | A choice | `a if condition else b` |
 | Indexing | `meta['origin']`, `values[0]` |
-| Functions | `abs`, `min`, `max`, `round`, `sqrt`, `log`, `exp`, `floor`, `ceil`, `range`, `field('load (kW)')` |
+| Functions | `abs`, `min`, `max`, `round`, `sqrt`, `log`, `exp`, `floor`, `ceil`, `range`, `sin`, `cos`, `distance`, `cosine`, `field('load (kW)')` |
+| Constants | `pi`, e.g. the hour on a circle: `sin(2 * pi * ts.hour / 24)`. A field named `pi` is read with `field('pi')` |
 | Methods and attributes | on times: `year`, `month`, `day`, `hour`, `minute`, `second`, `weekday()`, `isoweekday()`, `date()`, `timestamp()`, `between()`, `slot()`; on durations (`ts - other`): `days`, `seconds`, `total_seconds()`; on text: `lower()`, `upper()`, `strip()`, `startswith()`, `endswith()`; on objects: `get()`; on numbers: `is_integer()` |
 
 - In JSON, write text inside an expression with single quotes: `"where": "meta['origin'] == 'MG2'"`.
@@ -430,7 +447,7 @@ code-generated-on-demand-sandbox/
     clients/                    source_client.py, replies.py, records.py               SourceClient
     policy/                     policy.py, sources.py, rules.py, policy_checker.py     AllowedSources, PolicyChecker
     operations/base.py          Operation, CombinesChains, RunContext                  Operation, CombinesChains
-    operations/stream/          filter, map, reduce/ (a package), join, union, top, collect   *Operation
+    operations/stream/          filter, map, reduce/ (a package), join, union, top, lag, collect   *Operation
     operations/ml/              fit, finetune, load, predict, forecast, evaluate, embed, similarity
     ml/                         features, algorithms, trained models, metrics, profiles, vectors, sharing
     store/model_store.py        the trained models and their cards
@@ -482,10 +499,12 @@ microgrids (section 16), not the accuracy of the models.
 | op | JSON | Gives |
 |---|---|---|
 | `fit` | `model`, `target`, `lags`, `calendar` (`hour`, `weekday`, `month`), `algo`, `params`, `holdout` | One row: the card of the trained model, which is saved in the model store |
-| `finetune` | `model` (the source), `as` (the new name), `alpha`, `holdout` | One row: the card of the adapted model, saved under `as` |
+| `train` | `model`, `target`, `features` (columns made by `lag` and `map`), `where`, `algo`, `params` | The rows, unchanged; the model is saved with its recipe (section 17) |
+| `finetune` | `model` (the source), `as` (the new name), `alpha`, and `where` (source made by `train`) or `holdout` (source made by `fit`) | Source made by `train`: the rows, unchanged. Source made by `fit`: one row, the card of the adapted model. Saved under `as` |
 | `load` | `from` (a chain that gives one model record), `as` (default: the record's name) | The rows, unchanged; the model is saved in the model store |
-| `predict` | `model`, `as` | The rows, with the model's prediction; rows without every lag are dropped |
-| `forecast` | `model`, `steps`, `as` | Only the next `steps` rows after the last `ts`: `{ts, <as>}` |
+| `prepare` | `model` | The rows, with the model's inputs made by its recipe (models made by `train`) |
+| `predict` | `model`, `as` | The rows, with the model's prediction. Model made by `train`: from its feature columns, `null` where one is missing. Model made by `fit`: rows without every lag are dropped |
+| `forecast` | `model`, `steps`, `as` | Only the next `steps` rows after the last `ts`: `{ts, <as>}`. For a model made by `train`, each new row's inputs are made by its recipe (section 17) |
 | `evaluate` | `actual`, `predicted` | One row: `n`, `mae`, `rmse`, `mape` (%); rows with a null are skipped |
 | `embed` | `field`, `by`, `normalize`, `as` | One row per group: the hour-of-day profile (24 numbers) and `days` |
 | `similarity` | `field`, `metric` (`distance`, `cosine`), `with`, `as` | The rows, with the distance (or cosine) of their vector to the one row of `with` |
@@ -843,3 +862,136 @@ What the tests also show: with `max_sources` = 2 (both sources tried: 5 candidat
 still about twice as good as training locally, but one validation day favours MG1's adapted model (22.2 kW on the
 next days), where MG12's model as it is (11.8 kW) was the better choice. Ranking by similarity first is cheaper
 and, here, also better; a longer validation would make the choice more reliable.
+
+## 17. Step-by-step training (v3, in progress)
+
+**Why.** `fit` hides six steps in one operator: it builds the lags and the calendar inputs, splits off the holdout
+rows, scales (for `mlp`), trains, scores and saves. A code generator can only fill in its settings. v3 splits
+training into operators, so that the LLM composes the training workflow, and so that each step can be a step the
+generator fills in when a workflow lacks it. Agreed with the user on 2026-11-23.
+
+```json
+{"source": "http://localhost:4001/microgrids/2/readings?start=2026-07-03&end=2026-07-30",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "lag", "field": "kw", "lags": [1, 2, 24]},
+   {"op": "map", "set": {
+     "hour_sin": "sin(2 * pi * ts.hour / 24)",
+     "hour_cos": "cos(2 * pi * ts.hour / 24)",
+     "weekend": "1 if ts.weekday() >= 5 else 0",
+     "set": "'test' if ts >= '2026-07-30' else 'train'"}},
+   {"op": "train", "model": "mg2_demand", "target": "kw",
+    "features": ["kw_lag_1", "kw_lag_2", "kw_lag_24", "hour_sin", "hour_cos", "weekend"],
+    "where": "set == 'train'", "algo": "gbr", "params": {"n_estimators": 200}},
+   {"op": "predict", "model": "mg2_demand", "as": "kw_pred"},
+   {"op": "filter", "where": "set == 'test'"},
+   {"op": "evaluate", "actual": "kw", "predicted": "kw_pred"}]}
+```
+
+**The pieces**
+
+| Piece | What it does |
+|---|---|
+| `lag` (new) | Adds `<field>_lag_<k>`: the value k rows of the time step earlier; `by` keeps series apart. Rows without every lag are dropped, so later expressions never meet a missing lag |
+| `map` (exists) | Every other input, written by hand: calendar (`sin`, `cos`, `pi` are added to expressions), flags, weather joined in before |
+| split | Not an operator: a `map` that labels each row (`set`), then `where` in `train` and a `filter` before `evaluate` |
+| `train` (new) | Learns `target` from the `features` columns, on the rows that match `where`; `algo` and `params` as for `fit`. Saves the model with its features and its **recipe**: the `lag` and `map` steps before it, as written. The rows pass through |
+| `prepare` (new) | Replays a model's recipe on new rows, so the inputs at use are made exactly as at training |
+| `predict` | Reads the model's feature columns from the rows |
+| `forecast` | Replays the recipe at each future step: adds the next row, recomputes the inputs, predicts, fills in the value |
+| `finetune` | Trains its correction on the source model's feature columns, with `where`; the rows pass through |
+| export, `load` | The record carries the features and the recipe; a loaded recipe may only hold `lag` and `map` steps |
+| `fit` | Removed at the end (task 8): one way to train |
+
+**Tasks**, one at a time, each with its tests:
+
+| # | Task | Status |
+|---|---|---|
+| 1 | Expressions: `sin`, `cos`, the constant `pi` | done |
+| 2 | `lag`, with `by` | done |
+| 3 | `train`: features, `where`, recipe, the card | done |
+| 4 | `predict` on feature columns; `prepare` | done |
+| 5 | `forecast` that replays the recipe | done |
+| 6 | `finetune` on feature columns, passing the rows through | done |
+| 7 | Sharing: the record with features and recipe | done |
+| 8 | Remove `fit`; the UC1 and UC3 recipes and the examples as step-by-step chains; policy, README | |
+
+**`train` as built (task 3)**
+
+- Rows whose target or a feature is missing, or not a finite number, are skipped; `True`/`False` count as 1/0.
+  A feature or target that **no** row has is an error (a typo, not a row to skip). At least 10 rows must remain.
+- `where` must give `True` or `False`, as in `filter`. The target cannot also be a feature.
+- The card: `kind: "trained"`, `algo`, `params`, `target`, `features`, `interval_minutes` (of the rows, or `null`),
+  `recipe`, `rows` (trained on), `skipped_rows`, `first_ts`, `last_ts`, `mae` and `rmse` (`null`: train does not
+  test), `source_model`, `created_at`. `GET /models/{name}` returns it.
+- **The recipe** is filled in by the parser (`services/recipe.py`), which sees the steps before `train` in its own
+  chain. Walking back from `train`: `lag` and `map` steps are taken, `filter` steps are passed over (they choose
+  rows, they make no inputs), and any other step (`reduce`, `join`, ...) ends the recipe. The steps are kept as
+  written, without the keys left at their defaults.
+- A linear model made by `train` can be shared like any linear model (task 7).
+
+**`predict` and `prepare` as built (task 4)**
+
+- `predict` on a model made by `train` reads the model's feature columns from the rows. A column that no row has
+  is a 400 that names it and suggests `prepare`. A row without a number in every feature column keeps its place
+  and gets `null`, which `evaluate` skips. When the time steps of the model and of the rows are both known, they
+  must be the same. Models made by `fit` are predicted as before.
+- `prepare` (`{"op": "prepare", "model": "<name>"}`) runs the model's recipe on the rows: the result is the same
+  as writing the recipe's steps by hand. It is for models made by `train`; a model made by `fit` gets a 400 saying
+  that it builds its inputs itself. An error inside the recipe names the model and the recipe step:
+  `steps[0] prepare: the recipe of warm, steps[0] map: unknown field temp_c in 'temp_c > 25'`.
+- A recipe to run may only hold `lag` and `map` steps (`services/recipe.py`, `check_recipe`), checked before it is
+  parsed like a chain: this matters once recipes come from other sandboxes (task 7).
+- Operations get the parser's `recipe_steps` through `RunContext.parse_steps`, so that they do not depend on the
+  parser; `forecast` uses it too.
+
+**`forecast` as built (task 5, `operations/ml/stepping.py`)**
+
+- It takes the rows as they come before the recipe (after the `reduce`): `ts` and the target. At each step it adds
+  the next row (`ts`, an empty target, and the series' `by` fields), runs the recipe on it and on the rows its lags
+  reach back to (the largest lag of each `lag` step, added up), reads the model's inputs from the new row,
+  predicts, and fills in the value. The next step's lags read that value: a recursive forecast, as for `fit`.
+- One step ahead it gives the same value as `prepare` + `predict` on the actual rows (they read the same inputs).
+- The inputs may only come from `ts` and earlier values. An input made from a field that future rows do not have
+  (weather, say) is a 400 that names the recipe step and the field; forecasting with such inputs would need the
+  future values of that field (a weather forecast), which is not built.
+- With `by` in the recipe, the rows must hold one series; several are a 400 that asks to filter them to one.
+- The rows must have the model's time step; a model trained on rows without a known time step cannot step forward.
+
+**`finetune` as built (task 6)**
+
+`{"op": "finetune", "model": "mg1_demand", "as": "mg11_from_mg1", "where": "set == 'train'", "alpha": 100}`
+
+- For a source made by `train`: the correction (ridge regression on what the source gets wrong) is learned on the
+  source's feature columns, from the rows where `where` is `True`. A feature that no row has is a 400 that suggests
+  `prepare`; rows without a number in every column are skipped and counted; at least 10 rows must remain.
+- **The rows pass through**, so one straight chain can adapt, predict with both models, and compare: `prepare`,
+  the split `map`, `finetune`, `predict` (source), `predict` (adapted), `filter`, `evaluate` or `map` + `reduce`.
+  Before, this needed a `join` on a constant.
+- The adapted model's card: `kind: "adapted"`, `source_model`, the source's `algo` and `params` with
+  `finetune_alpha`, the source's `features` and **recipe** (its inputs are the source's), `rows` learned from.
+  `prepare` and `forecast` work with it.
+- `where` is for sources made by `train`, `holdout` for sources made by `fit` (which still return the card row);
+  the other combination is a 400 that says which to use. `holdout` goes when `fit` goes (task 8).
+- On the UC3 data (MG1's model, three days of MG11 to learn from, the fourth to test), the adapted model has a
+  smaller error than MG1's model on the test day (`tests/test_finetune_columns.py`).
+
+**Sharing as built (task 7)**
+
+- The export of a model made by `train` is its card plus `format`, `coef` and `intercept`, as before; the card
+  already holds `features` and `recipe`, so the record carries them. It has no `lags` or `calendar`.
+- `ModelRecord` tells the two kinds apart by `recipe`: with it, `features` are required (different names, without
+  the target, one `coef` each) and `interval_minutes` may be `null`; without it, `lags`, `calendar` and
+  `interval_minutes` are required, as for `fit`.
+- `load` checks the recipe of such a record with the parser before it saves the model: only `lag` and `map`
+  steps, each readable and with allowed expressions. A refused recipe is a 400 at the `load` step that names the
+  recipe step, e.g. `the recipe of mg12_demand, recipe steps[2]: a recipe may only hold lag and map steps, not
+  'filter'`; nothing is saved.
+- The loaded model (`kind: "loaded"`, `source_model`) keeps the recipe, features and origin fields, so `prepare`,
+  `predict`, `forecast` and `finetune` work with it, and it can be shared on. Adapted models made from a `train`
+  model are shared the same way, with the recipe of their source.
+- `tests/test_model_sharing_recipe.py`: the loaded model predicts and forecasts like the original, in memory and
+  across two sandboxes over HTTP (load, prepare and predict in one request).
+
+Open: whether `evaluate` gets a `"model"` option that writes its scores on that model's card (the card of `train`
+has no `mae`, since `train` does not test).

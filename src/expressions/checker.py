@@ -6,7 +6,15 @@ Data reaches an expression only through a field name (or field('...')), so the c
 
 import ast
 
-from src.expressions.allowed import CONSTANT_TYPES, FIELD_FUNCTION, FUNCTIONS, METHODS, NODES, REFUSED_NAMES
+from src.expressions.allowed import (
+    CONSTANT_TYPES,
+    CONSTANTS,
+    FIELD_FUNCTION,
+    FUNCTIONS,
+    METHODS,
+    NODES,
+    REFUSED_NAMES,
+)
 
 
 class Refused(ValueError):
@@ -32,6 +40,8 @@ class _Checker(ast.NodeVisitor):
     def visit_Name(self, node: ast.Name) -> None:
         if node.id.startswith("_"):
             raise Refused(f"names that start with _ are not allowed: {node.id}")
+        if node.id in CONSTANTS:
+            return  # a constant such as pi reads no field
         self.fields.add(node.id)
 
     def visit_Constant(self, node: ast.Constant) -> None:

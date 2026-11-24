@@ -1,10 +1,11 @@
-"""Sharing models between sandboxes (DESIGN.md section 11, "Sharing models").
+"""Sharing models between sandboxes (DESIGN.md sections 11 and 17).
 
 A model leaves its sandbox as a ModelRecord of plain numbers (GET /models/{name}/export), and enters another one
-through the load operator. No file of another sandbox is ever unpickled.
+through the load operator. No file of another sandbox is ever unpickled. A model travels with its features and its
+recipe, so that prepare and forecast work in the sandbox that loads it.
 
 Linear models can be shared: those trained with algo "linear", and those adapted from them (finetune adds a linear
-correction, so source + correction is again one linear model). gbr models cannot be shared yet.
+correction, so source + correction is again one linear model). gbr and mlp models cannot be shared yet.
 """
 
 from datetime import timedelta
@@ -15,7 +16,7 @@ from pydantic import ValidationError
 from sklearn.linear_model import Ridge
 
 from src.exceptions import ChainError
-from src.ml.features import FeatureSpec
+from src.ml.features import ColumnSpec
 from src.ml.trained import AdaptedEstimator, TrainedModel, make_card
 from src.models.model_record import FORMAT, ModelRecord
 from src.models.rows import Row
@@ -52,12 +53,12 @@ def linear_parts(estimator: Any) -> tuple[list[float], float] | None:
 
 def shareable(card: dict[str, Any]) -> bool:
     """Whether a model can be exported, from its card. An adapted model keeps the algo of its source, and a loaded
-    model is linear, so the algo says it."""
-    return card.get("algo") == "linear"
+    model is linear, so the algo says it. A card without a recipe is a model of fit, which is gone."""
+    return card.get("algo") == "linear" and "recipe" in card
 
 
 def export_record(model: TrainedModel) -> dict[str, Any]:
-    """The model as one record: its card, and the numbers to predict with."""
+    """The model as one record: its card (with its features and recipe), and the numbers to predict with."""
     parts = linear_parts(model.estimator)
     if parts is None:
         raise ChainError(
@@ -70,26 +71,21 @@ def export_record(model: TrainedModel) -> dict[str, Any]:
 def model_from_record(record: Row, name: str | None = None) -> TrainedModel:
     """The model a record describes, saved as `name` (default: the name in the record), with kind "loaded".
 
-    Its card keeps where it comes from: source_model is the name in the record; rows, first_ts, last_ts, mae and
-    rmse describe its training in the sandbox that exported it.
+    Its card keeps where it comes from: source_model is the name in the record; rows, first_ts, last_ts, mae, rmse
+    and mape describe its training and its scores in the sandbox that exported it. The recipe is checked here for
+    its shape only; the load operator checks its steps as a chain.
     """
     try:
         checked = ModelRecord.model_validate(record)
     except ValidationError as error:
         raise ChainError(f"the record is not a model that can be loaded: {_describe(error)}") from None
     output = check_name(name or checked.name)
-    spec = FeatureSpec(
-        checked.target, tuple(checked.lags), tuple(checked.calendar), timedelta(minutes=checked.interval_minutes)
-    )
-    card = make_card(output, "loaded", "linear", {}, spec, [], 0, None, source_model=checked.name)
-    card.update(
-        rows=checked.rows,
-        holdout_rows=checked.holdout_rows,
-        first_ts=checked.first_ts,
-        last_ts=checked.last_ts,
-        mae=checked.mae,
-        rmse=checked.rmse,
-    )
+    interval = timedelta(minutes=checked.interval_minutes) if checked.interval_minutes is not None else None
+    spec = ColumnSpec(checked.target, tuple(checked.features), interval)
+    card = make_card(output, "linear", {}, spec, tuple(checked.recipe), [], 0, 0, kind="loaded",
+                     source_model=checked.name)  # fmt: skip
+    origin = ("rows", "skipped_rows", "first_ts", "last_ts", "mae", "rmse", "mape")
+    card.update({key: getattr(checked, key) for key in origin})
     return TrainedModel(output, LinearWeights(checked.coef, checked.intercept), spec, card)
 
 

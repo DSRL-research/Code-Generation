@@ -1,6 +1,6 @@
-"""The machine-learning pieces that the ML operators (operations/ml/) are built from (DESIGN.md section 11).
+"""The machine-learning pieces that the ML operators (operations/ml/) are built from (DESIGN.md sections 11, 17).
 
-- features.py    FeatureSpec: lags of the target and calendar features of ts
+- features.py    ColumnSpec: the feature columns of a model; reading them as numbers
 - algorithms.py  the algorithms a chain may name (scikit-learn), with their allowed parameters
 - trained.py     TrainedModel (estimator + features + card) and AdaptedEstimator (source + local correction)
 - metrics.py     forecast errors: MAE, RMSE, MAPE

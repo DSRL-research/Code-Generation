@@ -1,18 +1,20 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from src.ml.features import history
+from src.exceptions import ChainError
+from src.ml.features import row_inputs
 from src.models.rows import Rows
 from src.operations.base import Operation, RunContext
-from src.operations.ml.common import interval_of, store_of
+from src.operations.ml.common import check_same_interval, store_of
 
 
 @dataclass(frozen=True)
 class PredictOperation(Operation):
-    """Adds the model's prediction to each row, computed from the actual values before it (a backtest).
+    """Adds the model's prediction to each row, from the model's feature columns.
 
-    JSON: {"op": "predict", "model": "mg1_demand", "as": "kw_pred"}
-    The rows need the model's target and time step. Rows without every lag (the first ones) are dropped.
+    JSON: {"op": "predict", "model": "mg2_demand", "as": "kw_pred"}
+    Make the feature columns with the same steps as for training, or with prepare. A row without a number in every
+    feature column gets None (evaluate skips it). The rows need the model's time step, when both are known.
     """
 
     name: ClassVar[str] = "predict"
@@ -21,13 +23,17 @@ class PredictOperation(Operation):
 
     def apply(self, rows: Rows, ctx: RunContext) -> Rows:
         model = store_of(ctx).load(self.model)
-        interval_of(rows, model.spec.interval)
-        known = history(rows.items, model.spec.target)
-        kept, features = [], []
-        for row in rows.items:
-            row_features = model.spec.features(row["ts"], known)
-            if row_features is not None:
-                kept.append(row)
-                features.append(row_features)
-        predictions = model.predict(features)
-        return rows.with_items([{**row, self.output: value} for row, value in zip(kept, predictions, strict=True)])
+        spec = model.spec
+        check_same_interval(rows, spec.interval)
+        for name in spec.features:
+            if rows.items and not any(name in row for row in rows.items):
+                raise ChainError(
+                    f'the rows have no field {name}, an input of {model.name}; add {{"op": "prepare", "model": '
+                    f'"{model.name}"}} before predict, or the steps that made it for training'
+                )
+        inputs = [row_inputs(row, spec.features) for row in rows.items]
+        predictions = iter(model.predict([values for values in inputs if values is not None]))
+        return rows.with_items(
+            [{**row, self.output: next(predictions) if values is not None else None}
+             for row, values in zip(rows.items, inputs, strict=True)]
+        )  # fmt: skip

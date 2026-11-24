@@ -1,10 +1,20 @@
 from pydantic import BaseModel
 
-from src.models.steps.stream import CollectJson, FilterJson, JoinJson, MapJson, ReduceJson, TopJson, UnionJson
+from src.models.steps.stream import (
+    CollectJson,
+    FilterJson,
+    JoinJson,
+    LagJson,
+    MapJson,
+    ReduceJson,
+    TopJson,
+    UnionJson,
+)
 from src.operations import (
     CollectOperation,
     FilterOperation,
     JoinOperation,
+    LagOperation,
     MapOperation,
     Operation,
     ReduceOperation,
@@ -28,6 +38,7 @@ class StreamBuilders:
             JoinJson: self._join,
             UnionJson: self._union,
             TopJson: self._top,
+            LagJson: self._lag,
             CollectJson: self._collect,
         }
 
@@ -62,6 +73,10 @@ class StreamBuilders:
 
     def _top(self, step: TopJson, path: str) -> Operation:
         return TopOperation(step.n, step.by, step.order)
+
+    def _lag(self, step: LagJson, path: str) -> Operation:
+        by = (step.by,) if isinstance(step.by, str) else tuple(step.by)
+        return LagOperation(step.field, tuple(step.lags), by)
 
     def _collect(self, step: CollectJson, path: str) -> Operation:
         fields = tuple(step.fields) if step.fields is not None else None

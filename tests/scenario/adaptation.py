@@ -84,8 +84,8 @@ class Adaptation:
 
     def _train(self, values: dict[str, Any], name: str, kind: str, model: str | None, source: int | None) -> Candidate:
         template = self.templates["local" if kind == "local" else "adapted"]
-        [card] = self.sandbox.run(fill(template, {**values, "model_name": name, "model": model}))
-        return Candidate(kind, card["name"], source, card["mae"])
+        [scores] = self.sandbox.run(fill(template, {**values, "model_name": name, "model": model}))
+        return Candidate(kind, scores["model"], source, scores["mae"])  # the scores are also on the model's card
 
     def _reuse(self, values: dict[str, Any], source: Asset) -> Candidate:
         [scores] = self.sandbox.run(fill(self.templates["reused"], {**values, "model": source.ref}))

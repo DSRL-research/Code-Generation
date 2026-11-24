@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
-    from src.models.chain import Chain
+    from src.models.chain import Chain, Step
     from src.models.rows import Rows
     from src.store import ModelStore
 
@@ -19,10 +19,13 @@ class RunContext:
 
     fetch(link) returns the rows of a link; ChainService makes it fetch each link once per run.
     models is the model store of the sandbox, used by the ML operators.
+    parse_steps(recipe) turns the recipe of a model (JSON steps) into steps to run, for prepare and forecast; it is
+    the parser's, given here so that operations do not depend on the parser.
     """
 
     fetch: Callable[[str], Rows]
     models: ModelStore | None = None
+    parse_steps: Callable[[Sequence[Any]], Sequence[Step]] | None = None
 
 
 class Operation(ABC):
@@ -48,3 +51,11 @@ class CombinesChains(Operation, ABC):
 
     chain_key: ClassVar[str] = "with"
     with_chain: Chain
+
+
+class RecordsRecipe(Operation, ABC):
+    """An operation that saves a model with its recipe: the lag and map steps before it in the chain, which made
+    the model's inputs (DESIGN.md section 17). The builder leaves `recipe` empty; the parser fills it in
+    (services/recipe.py), since only the parser sees the steps before."""
+
+    recipe: tuple[dict[str, Any], ...]

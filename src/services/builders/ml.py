@@ -1,26 +1,29 @@
 from pydantic import BaseModel
 
+from src.expressions import Expression
 from src.ml.algorithms import check_parameters
 from src.models.steps.ml import (
     EmbedJson,
     EvaluateJson,
     FinetuneJson,
-    FitJson,
     ForecastJson,
     LoadJson,
     PredictJson,
+    PrepareJson,
     SimilarityJson,
+    TrainJson,
 )
 from src.operations import (
     EmbedOperation,
     EvaluateOperation,
     FinetuneOperation,
-    FitOperation,
     ForecastOperation,
     LoadOperation,
     Operation,
     PredictOperation,
+    PrepareOperation,
     SimilarityOperation,
+    TrainOperation,
 )
 from src.services.builders import Builder, Parsing
 from src.store.model_store import check_name
@@ -34,7 +37,8 @@ class MlBuilders:
 
     def builders(self) -> dict[type[BaseModel], Builder]:
         return {
-            FitJson: self._fit,
+            TrainJson: self._train,
+            PrepareJson: self._prepare,
             FinetuneJson: self._finetune,
             LoadJson: self._load,
             PredictJson: self._predict,
@@ -44,13 +48,18 @@ class MlBuilders:
             SimilarityJson: self._similarity,
         }
 
-    def _fit(self, step: FitJson, path: str) -> Operation:
+    def _train(self, step: TrainJson, path: str) -> Operation:
+        """The recipe is left empty here: the parser fills it in from the steps before (services/recipe.py)."""
         check_parameters(step.algo, step.params)
-        return FitOperation(check_name(step.model), step.target, tuple(step.lags), tuple(step.calendar), step.algo,
-                            dict(step.params), step.holdout)  # fmt: skip
+        return TrainOperation(check_name(step.model), step.target, tuple(step.features), self._where(step.where),
+                              step.algo, dict(step.params))  # fmt: skip
+
+    def _prepare(self, step: PrepareJson, path: str) -> Operation:
+        return PrepareOperation(check_name(step.model))
 
     def _finetune(self, step: FinetuneJson, path: str) -> Operation:
-        return FinetuneOperation(check_name(step.model), check_name(step.output), float(step.alpha), step.holdout)
+        return FinetuneOperation(check_name(step.model), check_name(step.output), float(step.alpha),
+                                 self._where(step.where))  # fmt: skip
 
     def _load(self, step: LoadJson, path: str) -> Operation:
         output = check_name(step.output) if step.output is not None else None
@@ -63,7 +72,8 @@ class MlBuilders:
         return ForecastOperation(check_name(step.model), step.steps, step.output)
 
     def _evaluate(self, step: EvaluateJson, path: str) -> Operation:
-        return EvaluateOperation(step.actual, step.predicted)
+        model = check_name(step.model) if step.model is not None else None
+        return EvaluateOperation(step.actual, step.predicted, model)
 
     def _embed(self, step: EmbedJson, path: str) -> Operation:
         by = (step.by,) if isinstance(step.by, str) else tuple(step.by)
@@ -72,3 +82,6 @@ class MlBuilders:
     def _similarity(self, step: SimilarityJson, path: str) -> Operation:
         reference = self._parsing.nested_chain(step.chain, f"{path}with.")
         return SimilarityOperation(step.field, step.metric, reference, step.output or step.metric)
+
+    def _where(self, text: str | None) -> Expression | None:
+        return self._parsing.expression(text, "where") if text is not None else None

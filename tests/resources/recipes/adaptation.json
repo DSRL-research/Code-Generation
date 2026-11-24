@@ -1,18 +1,33 @@
 {
-  "description": "UC3: the chains the orchestrator uses to obtain the demand model of a microgrid with little history.",
+  "description": "UC3: the chains the orchestrator uses to obtain the demand model of a microgrid with little history. Every candidate is scored on the last day of the history (from ${validation_from}); a model made here gets the score on its card.",
   "embedding": {"source": "${readings}", "steps": [
     {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
     {"op": "embed", "field": "kw"}]},
   "local": {"source": "${history}", "steps": [
     {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
-    {"op": "fit", "model": "${model_name}", "target": "kw", "lags": [1, 2, 24], "calendar": ["hour", "weekday"],
-     "holdout": 24}]},
+    {"op": "lag", "field": "kw", "lags": [1, 2, 24]},
+    {"op": "map", "set": {
+      "hour_sin": "sin(2 * pi * ts.hour / 24)", "hour_cos": "cos(2 * pi * ts.hour / 24)",
+      "day_sin": "sin(2 * pi * ts.weekday() / 7)", "day_cos": "cos(2 * pi * ts.weekday() / 7)"}},
+    {"op": "map", "set": {"set": "'test' if ts >= '${validation_from}' else 'train'"}},
+    {"op": "train", "model": "${model_name}", "target": "kw",
+     "features": ["kw_lag_1", "kw_lag_2", "kw_lag_24", "hour_sin", "hour_cos", "day_sin", "day_cos"],
+     "where": "set == 'train'"},
+    {"op": "predict", "model": "${model_name}", "as": "kw_pred"},
+    {"op": "filter", "where": "set == 'test'"},
+    {"op": "evaluate", "actual": "kw", "predicted": "kw_pred", "model": "${model_name}"}]},
   "reused": {"source": "${history}", "steps": [
     {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+    {"op": "prepare", "model": "${model}"},
     {"op": "predict", "model": "${model}", "as": "kw_pred"},
     {"op": "filter", "where": "ts >= '${validation_from}'"},
     {"op": "evaluate", "actual": "kw", "predicted": "kw_pred"}]},
   "adapted": {"source": "${history}", "steps": [
     {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
-    {"op": "finetune", "model": "${model}", "as": "${model_name}", "holdout": 24}]}
+    {"op": "prepare", "model": "${model}"},
+    {"op": "map", "set": {"set": "'test' if ts >= '${validation_from}' else 'train'"}},
+    {"op": "finetune", "model": "${model}", "as": "${model_name}", "where": "set == 'train'"},
+    {"op": "predict", "model": "${model_name}", "as": "kw_pred"},
+    {"op": "filter", "where": "set == 'test'"},
+    {"op": "evaluate", "actual": "kw", "predicted": "kw_pred", "model": "${model_name}"}]}
 }

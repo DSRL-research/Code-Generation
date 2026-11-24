@@ -42,8 +42,21 @@ class ModelStore:
         card = self.card(name)
         if card is None:
             raise ChainError(f"no model named {name}; the models are {self.names()}")
+        if "recipe" not in card:
+            raise ChainError(
+                f"{name} was made by fit, which this version no longer has; train it again with lag, map and train"
+            )
         stored = joblib.load(self._artifact(name))
         return TrainedModel(name, stored["estimator"], stored["spec"], card)
+
+    def update_card(self, name: str, changes: dict[str, Any]) -> dict[str, Any]:
+        """Writes `changes` on the card of a model (evaluate writes its scores there) and returns the card."""
+        card = self.card(name)
+        if card is None:
+            raise ChainError(f"no model named {name}; the models are {self.names()}")
+        card.update(changes)
+        self._card_file(name).write_text(json.dumps(card, indent=2))
+        return card
 
     def card(self, name: str) -> dict[str, Any] | None:
         check_name(name)

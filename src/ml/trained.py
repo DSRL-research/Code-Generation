@@ -4,20 +4,21 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from src.ml.features import FeatureSpec
+from src.ml.features import ColumnSpec
 
 
 @dataclass
 class TrainedModel:
-    """An estimator, the features it needs, and its card.
+    """An estimator, the inputs it needs, and its card.
 
-    The card is the model as an asset: what it predicts, from which features, trained on what, how good it was on
-    its holdout rows, and where it came from (`source_model` for an adapted model).
+    The card is the model as an asset: what it predicts, from which columns, made by which steps (its recipe),
+    trained on what, how good it was (once evaluate has scored it), and where it came from (`source_model` for an
+    adapted or loaded model).
     """
 
     name: str
     estimator: Any
-    spec: FeatureSpec
+    spec: ColumnSpec
     card: dict[str, Any]
 
     def predict(self, features: list[list[float]]) -> list[float]:
@@ -43,36 +44,33 @@ class AdaptedEstimator:
 
 def make_card(
     name: str,
-    kind: str,
     algo: str,
     params: dict[str, Any],
-    spec: FeatureSpec,
+    spec: ColumnSpec,
+    recipe: tuple[dict[str, Any], ...],
     train_times: list[datetime],
-    holdout_rows: int,
-    errors: dict[str, Any] | None,
+    rows: int,
+    skipped: int,
+    kind: str = "trained",
     source_model: str | None = None,
 ) -> dict[str, Any]:
+    """The card of a model: kind "trained" (train), "adapted" (finetune) or "loaded" (load). `recipe` holds the lag
+    and map steps that made its inputs. mae, rmse and mape stay None until evaluate scores the model with
+    "model": its name."""
     return {
         "name": name,
-        "kind": kind,  # "trained" (fit), "adapted" (finetune) or "loaded" (load)
+        "kind": kind,
         "algo": algo,
         "params": params,
-        "features": spec.names,
         **spec.to_json(),
-        "rows": len(train_times),
-        "holdout_rows": holdout_rows,
-        "first_ts": train_times[0].isoformat() if train_times else None,
-        "last_ts": train_times[-1].isoformat() if train_times else None,
-        "mae": errors["mae"] if errors else None,
-        "rmse": errors["rmse"] if errors else None,
+        "recipe": list(recipe),
+        "rows": rows,
+        "skipped_rows": skipped,
+        "first_ts": min(train_times).isoformat() if train_times else None,
+        "last_ts": max(train_times).isoformat() if train_times else None,
+        "mae": None,
+        "rmse": None,
+        "mape": None,
         "source_model": source_model,
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
-
-
-SUMMARY_FIELDS = ("name", "kind", "algo", "rows", "holdout_rows", "mae", "rmse", "source_model")
-
-
-def summary_row(card: dict[str, Any]) -> dict[str, Any]:
-    """The row that fit and finetune return: the main fields of the card."""
-    return {field: card[field] for field in SUMMARY_FIELDS}

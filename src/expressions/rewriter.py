@@ -1,6 +1,7 @@
 """Turns a checked expression tree into the tree that is compiled.
 
 - abs(x)            -> _fn_abs(x)            a function never clashes with a field of the same name
+- pi                -> _k_pi                 a constant (allowed.CONSTANTS); a field named pi is field('pi')
 - field('load kW')  -> _row['load kW']       a field whose name is not a Python name
 - a ** b            -> _pow(a, b)            bounded size (guards.py)
 - a * b             -> _mul(a, b)            bounded size (guards.py)
@@ -11,9 +12,10 @@ can introduce them.
 
 import ast
 
-from src.expressions.allowed import FIELD_FUNCTION
+from src.expressions.allowed import CONSTANTS, FIELD_FUNCTION
 
 FUNCTION_PREFIX = "_fn_"
+CONSTANT_PREFIX = "_k_"
 ROW_NAME = "_row"
 POW_NAME = "_pow"
 MUL_NAME = "_mul"
@@ -28,6 +30,11 @@ def rewrite(tree: ast.Expression) -> ast.Expression:
 
 
 class _Rewriter(ast.NodeTransformer):
+    def visit_Name(self, node: ast.Name) -> ast.AST:
+        if node.id in CONSTANTS:
+            return ast.Name(CONSTANT_PREFIX + node.id, ast.Load())
+        return node
+
     def visit_Call(self, node: ast.Call) -> ast.AST:
         self.generic_visit(node)
         function = node.func

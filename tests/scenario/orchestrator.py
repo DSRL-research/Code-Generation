@@ -73,7 +73,7 @@ class Orchestrator:
         if missing:
             raise RecipeFailed(f"{recipe.capability} for MG{mg}: the output has no {missing}")
         if recipe.produces == "model":
-            name = rows[0]["name"]
+            name = rows[0]["model"]  # a recipe that trains a model ends with evaluate "model": the model's scores
             self.knowledge.add_asset(Asset(recipe.capability, mg, "model", name, derived_from=recipe.capability))
             return Provided("model", name)
         return Provided("rows", chain, rows)

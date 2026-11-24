@@ -1,0 +1,7 @@
+{"source": "http://localhost:4001/microgrids/1/readings?start=2026-07-29&end=2026-07-30",
+ "steps": [
+   {"op": "reduce", "window": "1h", "aggregate": {"kw": "mean"}},
+   {"op": "prepare", "model": "mg1_demand_v3"},
+   {"op": "predict", "model": "mg1_demand_v3", "as": "kw_pred"},
+   {"op": "filter", "where": "ts >= '2026-07-30'"},
+   {"op": "evaluate", "actual": "kw", "predicted": "kw_pred", "model": "mg1_demand_v3"}]}
